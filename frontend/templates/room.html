@@ -1,0 +1,148 @@
+<!-- frontend/template/room.html -->
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="flex h-screen bg-gradient-to-r from-cyan-900 to-sky-900">
+    <!-- Hidden inputs for room data -->
+    <input type="hidden" id="roomCode" value="{{ code }}">
+    <input type="hidden" id="userName" value="{{ name }}">
+
+    <!-- Sidebar -->
+    <div class="w-1/4 bg-gray-800 shadow-xl rounded-r-lg p-6 flex flex-col">
+        <!-- Room Info -->
+        <div class="mb-6 bg-gray-700 p-4 rounded-lg">
+            <h3 class="text-xl font-semibold text-white mb-2">Room Info</h3>
+            <div class="flex items-center justify-between bg-gray-600 p-2 rounded">
+                <span class="text-gray-300">Room Code:</span>
+                <span class="font-mono bg-gray-500 px-3 py-1 rounded text-white">{{ code }}</span>
+            </div>
+        </div>
+
+        <!-- Connected Users -->
+        <div class="w-64 bg-gray-800 shadow-xl rounded-r-lg p-4 flex flex-col">
+            <div class="flex items-center justify-between mb-3">
+                <h3 class="text-base font-semibold text-white">Connected Users</h3>
+                <span class="bg-gray-700 text-gray-300 text-xs px-2 py-0.5 rounded-full">
+                    <span id="userCount">0</span> online
+                </span>
+            </div>
+            <div id="connectedUsers" 
+                 class="space-y-0.5 overflow-y-auto flex-1 pr-1.5 custom-scrollbar">
+                <!-- Users will be populated here -->
+            </div>
+        </div>
+
+        <!-- Download Options -->
+        <div class="mt-6 space-y-3 border-t border-gray-600 pt-6">
+            <h3 class="text-lg font-semibold text-white mb-3">Export Document</h3>
+            <button onclick="downloadContent('txt')" class="w-full bg-blue-600 text-white py-3 rounded-lg hover:bg-blue-700 transition-colors flex items-center justify-center gap-2">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4 4m0 0l-4-4m4 4V4"/>
+                </svg>
+                Download as TXT
+            </button>
+            <button onclick="downloadContent('doc')" class="w-full bg-green-600 text-white py-3 rounded-lg hover:bg-green-700 transition-colors flex items-center justify-center gap-2">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4 4m0 0l-4-4m4 4V4"/>
+                </svg>
+                Download as DOC
+            </button>
+        </div>
+    </div>
+
+    <!-- Main Editor -->
+    <div id="editorContainer" class="flex-1 bg-gray-50 dark:bg-gray-900 p-4 rounded-lg shadow-lg transition-all duration-300 mx-4">
+        <div class="flex justify-between items-center mb-4">
+            <h2 class="text-xl font-semibold dark:text-gray-200">Collaborative Editor</h2>
+            <div class="flex items-center gap-4">
+                <button id="toggleDarkMode" class="px-4 py-2 bg-gray-200 dark:bg-gray-700 rounded-md transition-colors">
+                    Toggle Dark Mode
+                </button>
+                <button id="toggleChat" class="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 transition-colors">
+                    Toggle Chat
+                </button>
+            </div>
+        </div>
+        <div class="h-[85%]">
+            <textarea id="editor" class="w-full h-full border border-gray-300 dark:border-gray-600 p-2 rounded-md">{{ editor_content }}</textarea>
+        </div>
+    </div>
+
+    <!-- Chat Panel -->
+    <div id="chatPanel" class="w-1/4 bg-gray-800 shadow-lg px-4 py-6 rounded-lg transition-all duration-300">
+        <div class="flex flex-col h-full">
+            <div class="flex justify-between items-center mb-4">
+                <h3 class="text-xl font-semibold text-white">Chat</h3>
+            </div>
+            <div id="messages" class="flex-1 overflow-y-auto space-y-2 bg-gray-50 dark:bg-gray-700 p-4 rounded-lg mb-4"></div>
+            <div class="flex gap-2">
+                <input type="text" id="messageInput" placeholder="Type your message..." 
+                       class="flex-1 border border-gray-300 dark:border-gray-600 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-gray-200">
+                <button id="sendMessageBtn" class="bg-blue-500 text-white px-4 py-2 rounded-md hover:bg-blue-600 transition-colors">
+                    Send
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.2/socket.io.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.36.1/min/vs/loader.min.js"></script>
+<link href="https://cdn.quilljs.com/1.3.6/quill.snow.css" rel="stylesheet">
+<script src="https://cdn.quilljs.com/1.3.6/quill.js"></script>
+<script src="https://cdn.tiny.cloud/1/32c3fshkdmepqyewjj98rh2psw5wdva9kjdh5wggnwk5y7i1/tinymce/5/tinymce.min.js" referrerpolicy="origin"></script>
+<script src="../static/js/editor.js"></script>
+<script>
+document.getElementById('toggleDarkMode').addEventListener('click', function() {
+    document.documentElement.classList.toggle('dark');
+    const editor = tinymce.get('editor');
+    if (editor) {
+        const isDark = document.documentElement.classList.contains('dark');
+        editor.dom.addClass(editor.getBody(), isDark ? 'dark' : '');
+        editor.dom.removeClass(editor.getBody(), isDark ? '' : 'dark');
+    }
+});
+
+// Update TinyMCE initialization
+tinymce.init({
+    selector: '#editor',
+    plugins: 'link code',
+    toolbar: 'undo redo | formatselect | bold italic | alignleft aligncenter alignright | code',
+    height: '100%',
+    content_css: 'dark',
+    skin: 'oxide-dark',
+    content_style: `
+        body.dark { 
+            background-color: #1f2937;
+            color: #e5e7eb;
+        }
+    `,
+    setup: function(editor) {
+        editor.on('input', function() {
+            socket.emit('editor_update', { content: editor.getContent() });
+        });
+    }
+});
+</script>
+<style>
+.custom-scrollbar::-webkit-scrollbar {
+    width: 6px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-track {
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 3px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.2);
+    border-radius: 3px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+    background: rgba(255, 255, 255, 0.3);
+}
+</style>
+{% endblock %}
+
+<!-- here if we join with same name then it is considering the same user as it marks grey for both so fix -->
